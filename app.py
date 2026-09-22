@@ -14,7 +14,7 @@ st.set_page_config(
 ARCHIVO_HISTORIAL = "historial_ofertas.csv"
 
 # ------------------------------------------------------------------
-# ESTILOS CSS: TARJETAS IDÉNTICAS Y ALERTA DE PÉRDIDA
+# ESTILOS CSS: TARJETAS IDÉNTICAS Y ALERTAS
 # ------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -151,6 +151,22 @@ def guardar_registro(item: dict):
     nuevo_df.to_csv(ARCHIVO_HISTORIAL, index=False)
 
 # ------------------------------------------------------------------
+# LISTA DE RUBROS
+# ------------------------------------------------------------------
+LISTA_RUBROS = [
+    "accesorios varios",
+    "bazar",
+    "bucales",
+    "cosmetica",
+    "dermatologia",
+    "herboristeria",
+    "marroquineria",
+    "nutricion deportiva",
+    "ortopedia",
+    "perfumeria/fragancias"
+]
+
+# ------------------------------------------------------------------
 # ESTADOS DE SESIÓN (VALOR INICIAL COEFICIENTE: 1.43)
 # ------------------------------------------------------------------
 if "coef_str" not in st.session_state:
@@ -268,7 +284,6 @@ margen_base_pct = (coeficiente - 1.0) * 100.0
 descuento_quiebre_pct = ((coeficiente - 1.0) / coeficiente) * 100.0 if coeficiente > 0 else 0.0
 margen_sin_remarcar_pct = (coeficiente * (1.0 - d) - 1.0) * 100.0
 
-# Detección de pérdida
 esta_en_perdida = descuento_oferta_pct > descuento_quiebre_pct
 exceso_descuento_pct = max(0.0, descuento_oferta_pct - descuento_quiebre_pct)
 
@@ -328,64 +343,48 @@ with col_kpi4:
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# PESTAÑAS: SIMULADOR Y AUDITORÍA
+# PESTAÑAS: 1. UNITARIA, 2. RUBRO, 3. AUDITORÍA GERENCIAL
 # ------------------------------------------------------------------
-tab_simulador, tab_auditoria = st.tabs(["⚡ Calculadora y Guardado de Ofertas", "📋 Reporte y Auditoría de Trazabilidad"])
-
-LISTA_RUBROS = [
-    "perfumeria/fragancias",
-    "marroquineria",
-    "dermatologia",
-    "cosmetica",
-    "herboristeria",
-    "ortopedia",
-    "accesorios varios"
-]
+tab_simulador, tab_rubro, tab_auditoria = st.tabs([
+    "⚡ Calculadora Unitaria", 
+    "📊 Ajuste Masivo por Rubro", 
+    "📋 Auditoría y Reportes Gerenciales"
+])
 
 # ==================================================================
-# PESTAÑA 1: CALCULADORA, CUANTIFICACIÓN DE PÉRDIDA Y GUARDADO
+# PESTAÑA 1: CALCULADORA UNITARIA Y GUARDADO
 # ==================================================================
 with tab_simulador:
     col_izq, col_der = st.columns([1, 1.2])
 
     with col_izq:
-        st.subheader("1. Producto a Evaluar")
+        st.subheader("1. Producto Individual a Evaluar")
         prod_nombre = st.text_input("Descripción del Producto", value="Termo Keep 1.5LT")
         
-        costo_raw = st.text_input(
-            "Costo Sin IVA ($)", 
-            value="$ 4.395,35", 
-            help="Admite formatos como $ 4.395,35 o 4395,35"
-        )
+        costo_raw = st.text_input("Costo Sin IVA ($)", value="$ 4.395,35", key="costo_unit_input")
         costo_sin_iva = parsear_monto(costo_raw)
         precio_actual_lista_con_iva = (costo_sin_iva * coeficiente) * (1 + i)
 
-        # Cálculos de remarcación previa
         precio_lista_nuevo_con_iva = (costo_sin_iva * (1 + m_objetivo) * (1 + i)) / (1 - d) if (1 - d) > 0 else 0
         diferencia_dinero = precio_lista_nuevo_con_iva - precio_actual_lista_con_iva
         porcentaje_aumento = ((precio_lista_nuevo_con_iva / precio_actual_lista_con_iva) - 1) * 100 if precio_actual_lista_con_iva > 0 else 0
         precio_mostrador_oferta = precio_lista_nuevo_con_iva * (1 - d)
 
-        # Cálculos en caso de que NO se remarque la lista:
         precio_oferta_sin_remarcar = precio_actual_lista_con_iva * (1 - d)
         precio_neto_sin_remarcar = precio_oferta_sin_remarcar / (1 + i)
         resultado_sin_remarcar = precio_neto_sin_remarcar - costo_sin_iva
-        pct_perdida = (resultado_sin_remarcar / costo_sin_iva) * 100 if costo_sin_iva > 0 else 0
 
         st.info(
             f"📦 **Producto:** {prod_nombre}\n\n"
             f"• Costo sin IVA: **{formato_pesos(costo_sin_iva)}**\n\n"
-            f"• Precio de lista vigente (Coef. {coeficiente}): **{formato_pesos(precio_actual_lista_con_iva)}**"
+            f"• Precio de lista vigente: **{formato_pesos(precio_actual_lista_con_iva)}**"
         )
 
         st.markdown("---")
         st.markdown("##### 📂 Guardar en Historial de Ofertas")
-        rubro_seleccionado = st.selectbox(
-            "Seleccioná el Rubro del Producto:",
-            LISTA_RUBROS
-        )
+        rubro_seleccionado = st.selectbox("Seleccioná el Rubro:", LISTA_RUBROS, key="rubro_unit")
 
-        if st.button("💾 Guardar Oferta y Trazabilidad", use_container_width=True):
+        if st.button("💾 Guardar Oferta Unitaria", key="btn_save_unit", use_container_width=True):
             ahora = datetime.now()
             registro = {
                 "ID": ahora.strftime("%Y%m%d%H%M%S"),
@@ -403,116 +402,115 @@ with tab_simulador:
                 "Precio_Oferta_Publico": round(precio_mostrador_oferta, 2)
             }
             guardar_registro(registro)
-            st.success(f"✅ ¡Guardado con éxito! Se registró bajo **'{rubro_seleccionado}'** el {ahora.strftime('%d/%m/%Y a las %H:%M')}.")
+            st.success(f"✅ ¡Guardado con éxito en **'{rubro_seleccionado}'**!")
 
     with col_der:
         st.subheader("2. Remarcación y Precio Final")
         
         c_aum_pct, c_aum_pesos = st.columns(2)
-        with c_aum_pct:
-            st.metric(
-                label="📈 Porcentaje a Aumentar",
-                value=f"{porcentaje_aumento:+.2f}%".replace(".", ","),
-                delta="Ajuste requerido en lista",
-                delta_color="inverse"
-            )
-        with c_aum_pesos:
-            st.metric(
-                label="💵 Dinero a Aumentar (por unidad)",
-                value=formato_pesos(diferencia_dinero),
-                delta="Monto a sumar a la lista",
-                delta_color="inverse"
-            )
+        c_aum_pct.metric("📈 Porcentaje a Aumentar", f"{porcentaje_aumento:+.2f}%".replace(".", ","), delta_color="inverse")
+        c_aum_pesos.metric("💵 Dinero a Aumentar", formato_pesos(diferencia_dinero), delta_color="inverse")
 
         st.markdown("---")
-        
         c_pl1, c_pl2 = st.columns(2)
-        with c_pl1:
-            st.write("**Precio de Lista Actual:**")
-            st.markdown(f"### {formato_pesos(precio_actual_lista_con_iva)}")
-            st.caption(f"Costo × {coeficiente} + {iva_pct:.1f}% IVA")
-        with c_pl2:
-            st.write("**NUEVO Precio de Lista Sugerido:**")
-            st.markdown(f"<h2 style='color:#059669; margin:0;'>{formato_pesos(precio_lista_nuevo_con_iva)}</h2>", unsafe_allow_html=True)
-            st.caption("Cargar este precio en el sistema.")
+        c_pl1.write(f"**Precio Actual:**\n### {formato_pesos(precio_actual_lista_con_iva)}")
+        c_pl2.write(f"**NUEVO Precio Sugerido:**\n<h2 style='color:#059669; margin:0;'>{formato_pesos(precio_lista_nuevo_con_iva)}</h2>", unsafe_allow_html=True)
 
         st.markdown("---")
-        
         precio_neto_sin_iva = precio_mostrador_oferta / (1 + i)
         ganancia_neta_pesos = precio_neto_sin_iva - costo_sin_iva
         margen_efectivo_real = (ganancia_neta_pesos / costo_sin_iva) * 100 if costo_sin_iva > 0 else 0
 
         m1, m2, m3 = st.columns(3)
         m1.metric("Precio con Descuento", formato_pesos(precio_mostrador_oferta))
-        m2.metric("Ganancia Neta Unitaria", formato_pesos(ganancia_neta_pesos))
-        m3.metric("Rentabilidad Asegurada", f"{margen_efectivo_real:.2f}%".replace(".", ","))
+        m2.metric("Ganancia Neta", formato_pesos(ganancia_neta_pesos))
+        m3.metric("Rentabilidad", f"{margen_efectivo_real:.2f}%".replace(".", ","))
 
-        # ----------------------------------------------------------
-        # CUANTIFICACIÓN DE PÉRDIDA SI SE SUPERA EL UMBRAL
-        # ----------------------------------------------------------
         if esta_en_perdida:
-            perdida_unitaria = abs(resultado_sin_remarcar)
-            pct_perdida_costo = abs(pct_perdida)
-            
             st.markdown(f"""
             <div class="caja-perdida">
-                <h4 style="margin:0 0 8px 0; color:#991b1b;">🚨 ¡ATENCIÓN: OFERTA POR ENCIMA DEL UMBRAL DE PÉRDIDA!</h4>
-                La oferta del <b>{descuento_oferta_pct:.1f}%</b> supera el umbral límite del <b>{descuento_quiebre_pct:.2f}%</b> (exceso de <b>+{exceso_descuento_pct:.2f}%</b>).<br>
-                <b>Si aplicás esta oferta SIN remarcar la lista, estarás trabajando A PÉRDIDA:</b><br>
-                <ul style="margin: 8px 0;">
-                    <li><b>Pérdida neta por unidad:</b> <span style="font-size:1.15rem; font-weight:bold;">{formato_pesos(perdida_unitaria)}</span> por debajo de tu costo.</li>
-                    <li><b>Destrucción de capital:</b> Estás perdiendo un <b>{pct_perdida_costo:.2f}%</b> de tu costo de reposición en cada venta.</li>
-                    <li><b>Cobro neto en caja:</b> Recibirías neto <b>{formato_pesos(precio_neto_sin_remarcar)}</b> frente a un costo de <b>{formato_pesos(costo_sin_iva)}</b>.</li>
-                </ul>
-                👉 <b>Solución obligatoria:</b> Para no perder dinero y además ganar tu <b>{margen_mantener_pct:.0f}%</b> pretendido, 
-                debés remarcar la lista obligatoriamente a <b>{formato_pesos(precio_lista_nuevo_con_iva)}</b> (aumento de <b>{formato_pesos(diferencia_dinero)}</b>).
+                <b>🚨 ¡ATENCIÓN: OFERTA POR ENCIMA DEL UMBRAL!</b><br>
+                Pérdida neta de <b>{formato_pesos(abs(resultado_sin_remarcar))}</b> por unidad si no remarcás.
             </div>
             """, unsafe_allow_html=True)
+        elif diferencia_dinero > 0:
+            st.warning(f"💡 Remarcá la lista en **{formato_pesos(diferencia_dinero)}** (+{porcentaje_aumento:.2f}%) para sostener el margen del **{margen_mantener_pct:.0f}%** con la oferta.")
 
-            # Simulador de volumen de pérdida
-            with st.expander("📊 Calcular pérdida acumulada según unidades vendidas"):
-                unidades = st.number_input("Cantidad de unidades vendidas en la oferta:", min_value=1, value=10, step=5)
-                perdida_total = perdida_unitaria * unidades
-                st.error(f"💸 Vendiendo **{unidades} unidades** sin remarcar, la pérdida directa de bolsillo será de **{formato_pesos(perdida_total)}**.")
-        else:
-            if diferencia_dinero > 0:
-                st.warning(
-                    f"💡 **Recomendación**: Remarcá la lista en **{formato_pesos(diferencia_dinero)}** "
-                    f"(un **+{porcentaje_aumento:.2f}%**). Así, cuando apliques el **{descuento_oferta_pct:.0f}%** de oferta, "
-                    f"el cliente paga **{formato_pesos(precio_mostrador_oferta)}** y asegurás tu **{margen_mantener_pct:.0f}%** de rentabilidad neta."
-                )
-            else:
-                st.success(
-                    f"✅ Con tu coeficiente de **{coeficiente}** no hace falta remarcar. "
-                    f"El precio actual cubre el descuento del {descuento_oferta_pct:.0f}% sin comprometer la rentabilidad deseada."
-                )
 
 # ==================================================================
-# PESTAÑA 2: REPORTE Y AUDITORÍA DE TRAZABILIDAD
+# PESTAÑA 2: AJUSTE MASIVO POR RUBRO (COSTO MEDIO)
+# ==================================================================
+with tab_rubro:
+    st.subheader("📊 Simulación y Ajuste Global por Rubro mediante Costo Medio")
+    col_r1, col_r2 = st.columns([1, 1.2])
+
+    with col_r1:
+        rubro_masivo = st.selectbox("Seleccioná el Rubro a Ajustar:", LISTA_RUBROS, key="rubro_masivo_sel")
+        costo_medio_raw = st.text_input("Costo Medio / Promedio del Rubro sin IVA ($)", value="$ 15.000,00")
+        costo_medio = parsear_monto(costo_medio_raw)
+
+        precio_actual_medio_iva = (costo_medio * coeficiente) * (1 + i)
+        precio_sugerido_medio_iva = (costo_medio * (1 + m_objetivo) * (1 + i)) / (1 - d) if (1 - d) > 0 else 0
+        aumento_dinero_medio = precio_sugerido_medio_iva - precio_actual_medio_iva
+        aumento_pct_medio = ((precio_sugerido_medio_iva / precio_actual_medio_iva) - 1) * 100 if precio_actual_medio_iva > 0 else 0
+        precio_oferta_medio = precio_sugerido_medio_iva * (1 - d)
+
+        st.markdown("---")
+        if st.button("💾 Guardar Referencia de Rubro en Auditoría", use_container_width=True):
+            ahora = datetime.now()
+            registro_rubro = {
+                "ID": ahora.strftime("%Y%m%d%H%M%S"),
+                "Fecha_Hora": ahora.strftime("%Y-%m-%d %H:%M:%S"),
+                "Rubro": rubro_masivo,
+                "Producto": f"[RUBRO GLOBAL - Costo Medio: {formato_pesos(costo_medio)}]",
+                "Costo_Sin_IVA": round(costo_medio, 2),
+                "Coeficiente": round(coeficiente, 4),
+                "Oferta_Pct": round(descuento_oferta_pct, 2),
+                "Margen_Objetivo_Pct": round(margen_mantener_pct, 2),
+                "Precio_Lista_Actual": round(precio_actual_medio_iva, 2),
+                "Nuevo_Precio_Sugerido": round(precio_sugerido_medio_iva, 2),
+                "Aumento_Pct": round(aumento_pct_medio, 2),
+                "Aumento_Dinero": round(aumento_dinero_medio, 2),
+                "Precio_Oferta_Publico": round(precio_oferta_medio, 2)
+            }
+            guardar_registro(registro_rubro)
+            st.success(f"✅ ¡Parámetros guardados para el rubro **{rubro_masivo}**!")
+
+    with col_r2:
+        st.markdown(f"### 📈 Impacto del Ajuste: *{rubro_masivo.upper()}*")
+        m_col1, m_col2 = st.columns(2)
+        m_col1.metric("Aumento Sugerido", f"{aumento_pct_medio:+.2f}%".replace(".", ","), delta_color="inverse")
+        m_col2.metric("Aumento en Dinero", formato_pesos(aumento_dinero_medio), delta_color="inverse")
+        st.markdown("---")
+        r_pl1, r_pl2 = st.columns(2)
+        r_pl1.write(f"**Precio Actual:**\n### {formato_pesos(precio_actual_medio_iva)}")
+        r_pl2.write(f"**NUEVO Precio Sugerido:**\n<h2 style='color:#059669; margin:0;'>{formato_pesos(precio_sugerido_medio_iva)}</h2>", unsafe_allow_html=True)
+
+
+# ==================================================================
+# PESTAÑA 3: AUDITORÍA GERENCIAL, COMPOSICIÓN, GRÁFICOS Y EXPORTACIÓN
 # ==================================================================
 with tab_auditoria:
-    st.subheader("📋 Registro Histórico y Auditoría de Trazabilidad")
-    st.caption("Filtra las ofertas guardadas por rango de calendario y rubro para auditar remarcaciones y descargar reportes.")
+    st.subheader("📋 Dashboard Gerencial y Auditoría de Trazabilidad")
+    st.caption("Analiza la composición de ofertas por rubro, visualiza gráficos de distribución y exporta tus reportes en múltiples formatos.")
 
     df_hist = cargar_historial()
 
     if df_hist.empty:
-        st.info("ℹ️ Todavía no hay ofertas guardadas. Guardá tu primer producto desde la calculadora.")
+        st.info("ℹ️ Todavía no hay registros de ofertas guardados. Guardá productos o rubros desde las pestañas anteriores.")
     else:
         col_f1, col_f2, col_f3 = st.columns([1.5, 1.5, 2])
-        
         fechas_disponibles = pd.to_datetime(df_hist["Fecha_Hora"]).dt.date
         fecha_min = fechas_disponibles.min()
         fecha_max = fechas_disponibles.max()
 
         with col_f1:
-            f_desde = st.date_input("Fecha Desde:", value=fecha_min, min_value=fecha_min, max_value=date.today())
+            f_desde = st.date_input("Fecha Desde:", value=fecha_min, min_value=fecha_min, max_value=date.today(), key="f_d_aud")
         with col_f2:
-            f_hasta = st.date_input("Fecha Hasta:", value=fecha_max, min_value=fecha_min, max_value=date.today())
+            f_hasta = st.date_input("Fecha Hasta:", value=fecha_max, min_value=fecha_min, max_value=date.today(), key="f_h_aud")
         with col_f3:
-            rubro_filtro = st.selectbox("Filtrar por Rubro:", ["Todos los rubros"] + LISTA_RUBROS)
+            rubro_filtro = st.selectbox("Filtrar por Rubro:", ["Todos los rubros"] + LISTA_RUBROS, key="r_f_aud")
 
-        # Filtros
         df_hist["Fecha_DT"] = pd.to_datetime(df_hist["Fecha_Hora"]).dt.date
         mask = (df_hist["Fecha_DT"] >= f_desde) & (df_hist["Fecha_DT"] <= f_hasta)
         if rubro_filtro != "Todos los rubros":
@@ -521,45 +519,84 @@ with tab_auditoria:
         df_filtrado = df_hist[mask].copy()
 
         st.markdown("---")
-        a1, a2, a3, a4 = st.columns(4)
-        a1.metric("Ofertas Auditadas", len(df_filtrado))
         
+        a1, a2, a3, a4 = st.columns(4)
+        a1.metric("Total Registros", len(df_filtrado))
         aum_prom = df_filtrado["Aumento_Pct"].mean() if not df_filtrado.empty else 0.0
         aum_max = df_filtrado["Aumento_Pct"].max() if not df_filtrado.empty else 0.0
         rubro_top = df_filtrado["Rubro"].mode()[0] if not df_filtrado.empty else "-"
 
         a2.metric("Remarcación Promedio", f"{aum_prom:+.2f}%".replace(".", ","))
         a3.metric("Remarcación Máxima", f"{aum_max:+.2f}%".replace(".", ","))
-        a4.metric("Rubro con más Ofertas", rubro_top)
+        a4.metric("Rubro con más Actividad", rubro_top)
 
         st.markdown("---")
 
-        df_vista = df_filtrado.copy()
-        df_vista["Costo_Sin_IVA"] = df_vista["Costo_Sin_IVA"].apply(formato_pesos)
-        df_vista["Precio_Lista_Actual"] = df_vista["Precio_Lista_Actual"].apply(formato_pesos)
-        df_vista["Nuevo_Precio_Sugerido"] = df_vista["Nuevo_Precio_Sugerido"].apply(formato_pesos)
-        df_vista["Aumento_Dinero"] = df_vista["Aumento_Dinero"].apply(formato_pesos)
-        df_vista["Precio_Oferta_Publico"] = df_vista["Precio_Oferta_Publico"].apply(formato_pesos)
-        df_vista["Aumento_Pct"] = df_vista["Aumento_Pct"].apply(lambda x: f"{x:+.2f}%".replace(".", ","))
-        df_vista["Oferta_Pct"] = df_vista["Oferta_Pct"].apply(lambda x: f"{x:.1f}%".replace(".", ","))
-        df_vista["Margen_Objetivo_Pct"] = df_vista["Margen_Objetivo_Pct"].apply(lambda x: f"{x:.1f}%".replace(".", ","))
+        if not df_filtrado.empty:
+            st.markdown("#### 📊 Composición de Ofertas por Rubro")
+            
+            comp_rubro = df_filtrado.groupby("Rubro").agg(
+                Cantidad=("Producto", "count"),
+                Promedio_Oferta=("Oferta_Pct", "mean"),
+                Promedio_Aumento=("Aumento_Pct", "mean")
+            ).reset_index()
+            comp_rubro["Participacion_%"] = (comp_rubro["Cantidad"] / len(df_filtrado)) * 100
 
-        columnas_mostrar = [
-            "Fecha_Hora", "Rubro", "Producto", "Costo_Sin_IVA", "Coeficiente",
-            "Oferta_Pct", "Precio_Lista_Actual", "Nuevo_Precio_Sugerido",
-            "Aumento_Pct", "Aumento_Dinero", "Precio_Oferta_Publico"
-        ]
+            c_g1, c_g2 = st.columns(2)
+            
+            with c_g1:
+                st.markdown("**Distribución cuantitativa de ofertas:**")
+                st.bar_chart(comp_rubro.set_index("Rubro")["Cantidad"])
 
-        st.dataframe(
-            df_vista[columnas_mostrar],
-            use_container_width=True,
-            hide_index=True
-        )
+            with c_g2:
+                st.markdown("**Tabla Resumen de Composición:**")
+                df_comp_vista = comp_rubro.copy()
+                df_comp_vista["Promedio_Oferta"] = df_comp_vista["Promedio_Oferta"].apply(lambda x: f"{x:.1f}%")
+                df_comp_vista["Promedio_Aumento"] = df_comp_vista["Promedio_Aumento"].apply(lambda x: f"{x:+.2f}%")
+                df_comp_vista["Participacion_%"] = df_comp_vista["Participacion_%"].apply(lambda x: f"{x:.1f}%")
+                st.dataframe(df_comp_vista, use_container_width=True, hide_index=True)
 
-        csv_data = df_filtrado.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Descargar Reporte de Auditoría (CSV / Excel)",
-            data=csv_data,
-            file_name=f"auditoria_ofertas_{f_desde}_al_{f_hasta}.csv",
-            mime="text/csv"
-        )
+            st.markdown("---")
+            st.markdown("#### 🔍 Detalle Analítico de Productos Auditados")
+
+            df_vista = df_filtrado.copy()
+            df_vista["Costo_Sin_IVA"] = df_vista["Costo_Sin_IVA"].apply(formato_pesos)
+            df_vista["Precio_Lista_Actual"] = df_vista["Precio_Lista_Actual"].apply(formato_pesos)
+            df_vista["Nuevo_Precio_Sugerido"] = df_vista["Nuevo_Precio_Sugerido"].apply(formato_pesos)
+            df_vista["Aumento_Dinero"] = df_vista["Aumento_Dinero"].apply(formato_pesos)
+            df_vista["Precio_Oferta_Publico"] = df_vista["Precio_Oferta_Publico"].apply(formato_pesos)
+            df_vista["Aumento_Pct"] = df_vista["Aumento_Pct"].apply(lambda x: f"{x:+.2f}%".replace(".", ","))
+            df_vista["Oferta_Pct"] = df_vista["Oferta_Pct"].apply(lambda x: f"{x:.1f}%".replace(".", ","))
+            df_vista["Margen_Objetivo_Pct"] = df_vista["Margen_Objetivo_Pct"].apply(lambda x: f"{x:.1f}%".replace(".", ","))
+
+            columnas_mostrar = [
+                "Fecha_Hora", "Rubro", "Producto", "Costo_Sin_IVA", "Coeficiente",
+                "Oferta_Pct", "Precio_Lista_Actual", "Nuevo_Precio_Sugerido",
+                "Aumento_Pct", "Aumento_Dinero", "Precio_Oferta_Publico"
+            ]
+
+            st.dataframe(df_vista[columnas_mostrar], use_container_width=True, hide_index=True)
+
+            st.markdown("---")
+            st.markdown("##### 📥 Exportar Reporte de Auditoría")
+            
+            ex_col1, ex_col2 = st.columns(2)
+            with ex_col1:
+                csv_data = df_filtrado.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📊 Descargar Reporte Completo (CSV / Excel)",
+                    data=csv_data,
+                    file_name=f"auditoria_{f_desde}_al_{f_hasta}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            with ex_col2:
+                st.download_button(
+                    label="💾 Copia de Seguridad de Base de Datos",
+                    data=csv_data,
+                    file_name="respaldo_historial_ofertas.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+        else:
+            st.warning("No hay registros en el rango de fechas o rubro seleccionado.")
